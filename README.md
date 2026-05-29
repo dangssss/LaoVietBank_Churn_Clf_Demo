@@ -112,6 +112,128 @@ Notebook thực hiện:
 
 Mục tiêu là giúp hệ thống không chỉ đưa ra nhãn churn/không churn, mà còn thể hiện mức độ chắc chắn của dự đoán.
 
+## Công thức sử dụng trong demo
+
+### 1. Các chỉ số đánh giá mô hình
+
+Notebook giải thích các metric chính dùng để đánh giá mô hình classification:
+
+**Accuracy - độ chính xác tổng thể**
+
+$$
+\text{Accuracy} = \frac{TP + TN}{TP + TN + FP + FN}
+$$
+
+Accuracy cho biết tỷ lệ dự đoán đúng trên toàn bộ mẫu. Tuy nhiên, với bài toán churn có dữ liệu mất cân bằng, accuracy chỉ nên dùng để tham khảo vì mô hình có thể đạt accuracy cao dù bỏ sót nhiều khách hàng rời bỏ.
+
+**Precision - độ chính xác dương tính**
+
+$$
+\text{Precision} = \frac{TP}{TP + FP}
+$$
+
+Precision trả lời câu hỏi: trong số khách hàng được dự đoán sẽ churn, bao nhiêu người thực sự churn. Chỉ số này quan trọng khi chi phí chăm sóc nhầm khách hàng không churn là cao.
+
+**Recall - độ nhạy**
+
+$$
+\text{Recall} = \frac{TP}{TP + FN}
+$$
+
+Recall trả lời câu hỏi: trong số khách hàng thực sự churn, mô hình bắt được bao nhiêu người. Với bài toán giữ chân khách hàng, Recall của lớp `Exited = 1` đặc biệt quan trọng vì bỏ sót khách hàng sắp rời bỏ có thể gây mất doanh thu trực tiếp.
+
+**F1-score - cân bằng giữa Precision và Recall**
+
+$$
+\text{F1} = 2 \times \frac{\text{Precision} \times \text{Recall}}{\text{Precision} + \text{Recall}}
+$$
+
+F1-score phù hợp khi cần cân bằng giữa việc hạn chế báo nhầm và hạn chế bỏ sót khách hàng churn.
+
+**Macro average**
+
+$$
+\text{F1}_{macro} = \frac{\text{F1}_{class\ 0} + \text{F1}_{class\ 1}}{2}
+$$
+
+Macro average tính trung bình giữa các lớp mà không xét đến số lượng mẫu từng lớp, giúp kiểm tra mô hình có đang thiên lệch về lớp đa số hay không.
+
+**Weighted average**
+
+$$
+\text{F1}_{weighted} = \frac{\text{F1}_0 \cdot N_0 + \text{F1}_1 \cdot N_1}{N_0 + N_1}
+$$
+
+Weighted average phản ánh hiệu suất tổng thể theo tỷ trọng mẫu từng lớp, nhưng có thể che khuất điểm yếu ở lớp thiểu số.
+
+### 2. Công thức SHAP
+
+Trong SHAP force/waterfall plot, mô hình bắt đầu từ giá trị trung bình và cộng/trừ đóng góp của từng feature để ra kết quả cuối cùng:
+
+$$
+f(x) = E[f(X)] + \sum_{i=1}^{n} \text{SHAP}_i
+$$
+
+Với mô hình tree classification, `f(x)` thường được hiểu là logit score. Xác suất churn có thể được chuyển từ logit bằng hàm sigmoid:
+
+$$
+\text{Probability} = \frac{1}{1 + e^{-f(x)}}
+$$
+
+Trong biểu đồ SHAP:
+
+- Feature có SHAP value dương làm tăng khả năng churn.
+- Feature có SHAP value âm làm giảm khả năng churn.
+- Độ lớn SHAP value thể hiện mức ảnh hưởng của feature đến dự đoán.
+
+### 3. Công thức MAPIE/conformal prediction
+
+MAPIE được dùng để tạo prediction set và ước lượng khoảng tin cậy cho xác suất dự đoán.
+
+Với mẫu calibration thứ `i`, gọi:
+
+- \( \hat{p}_i \): xác suất mô hình dự đoán cho class 1.
+- \( y_i \): nhãn thật của mẫu.
+
+Conformity score được tính:
+
+$$
+s_i =
+\begin{cases}
+1 - \hat{p}_i, & \text{nếu } y_i = 1 \\
+\hat{p}_i, & \text{nếu } y_i = 0
+\end{cases}
+$$
+
+Với mức sai số `alpha`, quantile được tính:
+
+$$
+q_\alpha = \text{Quantile}_{1 - \alpha}(s_i)
+$$
+
+Sau đó tính cận dưới và cận trên cho xác suất dự đoán trên tập test:
+
+$$
+\text{Lower} = \max(0, \hat{p}_{\text{test}} - q_\alpha)
+$$
+
+$$
+\text{Upper} = \min(1, \hat{p}_{\text{test}} + q_\alpha)
+$$
+
+Tổng quát:
+
+$$
+\boxed{
+\begin{aligned}
+\text{Lower} &= \max(0, \hat{p}_{\text{test}} - q_\alpha) \\
+\text{Upper} &= \min(1, \hat{p}_{\text{test}} + q_\alpha)
+\end{aligned}
+}
+$$
+
+Ví dụ trong phần giải thích: nếu `alpha = 0.05`, \( q_{0.05} = 0.15 \), xác suất dự đoán là `0.88`, thì khoảng xác suất sau clipping là `[0.73, 1.00]`.
+
 ## Cách chạy notebook
 
 1. Mở `Demo.ipynb` bằng Jupyter Notebook, JupyterLab hoặc Google Colab.
